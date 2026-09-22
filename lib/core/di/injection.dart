@@ -1,10 +1,12 @@
 import 'package:dio/dio.dart';
 import 'package:get_it/get_it.dart';
 import 'package:hive/hive.dart';
+import '../../features/home/presentation/bloc/home_bloc.dart';
 import '../../shared/localization/locale_cubit.dart';
 import '../../shared/theme/theme_cubit.dart';
 import '../constants/app_strings.dart';
 import '../network/api_client.dart';
+import '../utils/clipboard_watcher.dart';
 
 final getIt = GetIt.instance;
 
@@ -19,11 +21,18 @@ Future<void> configureDependencies() async {
   getIt.registerLazySingleton<Dio>(() => createDio());
 
   // Cubits
+  // Services & Utilities
+  getIt.registerLazySingleton<ClipboardWatcher>(() => ClipboardWatcher());
+
+  // Cubits & Blocs
   getIt.registerFactory<ThemeCubit>(
     () => ThemeCubit(getIt<Box>(instanceName: AppStrings.settingsBox)),
   );
   getIt.registerFactory<LocaleCubit>(
     () => LocaleCubit(getIt<Box>(instanceName: AppStrings.settingsBox)),
+  );
+  getIt.registerFactory<HomeBloc>(
+    () => HomeBloc(clipboardWatcher: getIt<ClipboardWatcher>()),
   );
 }
 

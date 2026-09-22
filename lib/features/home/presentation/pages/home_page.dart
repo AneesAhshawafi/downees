@@ -1,66 +1,105 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../core/constants/app_dimensions.dart';
-import '../../../../l10n/app_localizations.dart';
 
-class HomePage extends StatefulWidget {
+import '../../../../core/constants/app_dimensions.dart';
+import '../../../../core/di/injection.dart';
+import '../../../../l10n/app_localizations.dart';
+import '../bloc/home_bloc.dart';
+import '../bloc/home_event.dart';
+import '../bloc/home_state.dart';
+import '../widgets/active_downloads_list.dart';
+import '../widgets/download_button.dart';
+import '../widgets/paste_button.dart';
+import '../widgets/smart_paste_banner.dart';
+import '../widgets/url_input_bar.dart';
+
+class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (_) => getIt<HomeBloc>()..add(HomeStarted()),
+      child: const _HomeView(),
+    );
+  }
 }
 
-class _HomePageState extends State<HomePage> {
-  final TextEditingController _urlController = TextEditingController();
+class _HomeView extends StatefulWidget {
+  const _HomeView();
 
   @override
-  void dispose() {
-    _urlController.dispose();
-    super.dispose();
+  State<_HomeView> createState() => _HomeViewState();
+}
+
+class _HomeViewState extends State<_HomeView> with WidgetsBindingObserver {
+  late final TextEditingController _urlController;
+
+  @override
+  void initState() {
+    super.initState();
+    _urlController = TextEditingController();
+    WidgetsBinding.instance.addObserver(this);
   }
 
-  void _onDownloadPressed() {
-    final url = _urlController.text.trim();
-    if (url.isNotEmpty) {
-      context.push('/preview', extra: url);
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      context.read<HomeBloc>().add(AppResumed());
     }
   }
 
   @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _urlController.dispose();
+    super.dispose();
+  }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.appTitle),
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppDimensions.md),
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
+    return BlocListener<HomeBloc, HomeState>(
+      listenWhen: (prev, curr) =>
+          prev.navigateToPreviewUrl != curr.navigateToPreviewUrl &&
+          curr.navigateToPreviewUrl != null,
+      listener: (context, state) {
+        if (state.navigateToPreviewUrl != null) {
+          context.push('/preview', extra: state.navigateToPreviewUrl);
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(title: Text(l10n?.appTitle ?? 'Downees')),
+        body: SafeArea(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: AppDimensions.md),
-              TextField(
-                controller: _urlController,
-                decoration: InputDecoration(
-                  hintText: l10n.pasteLink,
-                  prefixIcon: const Icon(Icons.link),
-                  suffixIcon: IconButton(
-                    icon: const Icon(Icons.paste),
-                    tooltip: l10n.paste,
-                    onPressed: () {
-                      // Handled more comprehensively in Feature 02
-                    },
+              const SmartPasteBanner(),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(AppDimensions.md),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const SizedBox(height: AppDimensions.sm),
+                      UrlInputBar(controller: _urlController),
+                      const SizedBox(height: AppDimensions.md),
+                      Row(
+                        children: [
+                          Expanded(
+                            flex: 2,
+                            child: PasteButton(controller: _urlController),
+                          ),
+                          const SizedBox(width: AppDimensions.md),
+                          const Expanded(flex: 3, child: DownloadButton()),
+                        ],
+                      ),
+                      const SizedBox(height: AppDimensions.lg),
+                      const ActiveDownloadsList(),
+                    ],
                   ),
                 ),
-                onSubmitted: (_) => _onDownloadPressed(),
-              ),
-              const SizedBox(height: AppDimensions.md),
-              ElevatedButton.icon(
-                onPressed: _onDownloadPressed,
-                icon: const Icon(Icons.download),
-                label: Text(l10n.download),
               ),
             ],
           ),
@@ -69,4 +108,3 @@ class _HomePageState extends State<HomePage> {
     );
   }
 }
-
