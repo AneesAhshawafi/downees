@@ -35,13 +35,12 @@ class VideoQuality extends Equatable {
 
   @override
   List<Object?> get props => [
-        label,
-        resolution,
-        fileSizeBytes,
-        downloadUrl,
-        format,
-        hasAudio,
-        isAudioOnly,
-      ];
+    label,
+    resolution,
+    fileSizeBytes,
+    downloadUrl,
+    format,
+    hasAudio,
+    isAudioOnly,
+  ];
 }
-

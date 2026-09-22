@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+
 import '../../../../core/enums/download_status.dart';
 import '../../domain/entities/video_quality.dart';
 import '../../domain/usecases/fetch_video_info.dart';
@@ -23,27 +24,24 @@ class PreviewBloc extends Bloc<PreviewEvent, PreviewState> {
 
     try {
       final info = await fetchVideoInfo(event.url);
-      final initialQuality = info.defaultQuality ??
+      final initialQuality =
+          info.defaultQuality ??
           (info.qualities.isNotEmpty ? info.qualities.first : null);
 
-      emit(state.copyWith(
-        isLoading: false,
-        videoInfo: info,
-        selectedQuality: initialQuality,
-        clearError: true,
-      ));
+      emit(
+        state.copyWith(
+          isLoading: false,
+          videoInfo: info,
+          selectedQuality: initialQuality,
+          clearError: true,
+        ),
+      );
     } catch (e) {
-      emit(state.copyWith(
-        isLoading: false,
-        error: e.toString(),
-      ));
+      emit(state.copyWith(isLoading: false, error: e.toString()));
     }
   }
 
-  void _onSelectFormat(
-    SelectFormatEvent event,
-    Emitter<PreviewState> emit,
-  ) {
+  void _onSelectFormat(SelectFormatEvent event, Emitter<PreviewState> emit) {
     if (state.videoInfo == null) return;
 
     final targetQualities = event.isAudioOnly
@@ -61,25 +59,20 @@ class PreviewBloc extends Bloc<PreviewEvent, PreviewState> {
       newSelected ??= targetQualities.first;
     }
 
-    emit(state.copyWith(
-      isAudioOnly: event.isAudioOnly,
-      selectedQuality: newSelected,
-      clearSelectedQuality: newSelected == null,
-    ));
+    emit(
+      state.copyWith(
+        isAudioOnly: event.isAudioOnly,
+        selectedQuality: newSelected,
+        clearSelectedQuality: newSelected == null,
+      ),
+    );
   }
 
-  void _onSelectQuality(
-    SelectQualityEvent event,
-    Emitter<PreviewState> emit,
-  ) {
+  void _onSelectQuality(SelectQualityEvent event, Emitter<PreviewState> emit) {
     emit(state.copyWith(selectedQuality: event.quality));
   }
 
-  void _onStartDownload(
-    StartDownloadEvent event,
-    Emitter<PreviewState> emit,
-  ) {
+  void _onStartDownload(StartDownloadEvent event, Emitter<PreviewState> emit) {
     emit(state.copyWith(downloadStatus: DownloadStatus.downloading));
   }
 }
-
