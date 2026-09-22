@@ -3,6 +3,7 @@ import 'package:get_it/get_it.dart';
 import 'package:hive/hive.dart';
 
 import '../../features/download/data/datasources/video_api_datasource.dart';
+import '../../features/download/data/datasources/youtube_datasource.dart';
 import '../../features/download/data/repositories/video_repository_impl.dart';
 import '../../features/download/domain/repositories/video_repository.dart';
 import '../../features/download/domain/usecases/fetch_video_info.dart';
@@ -20,7 +21,10 @@ Future<void> configureDependencies() async {
   // Hive Boxes
   final settingsBox = await Hive.openBox(AppStrings.settingsBox);
   final historyBox = await Hive.openBox(AppStrings.historyBox);
-  getIt.registerSingleton<Box>(settingsBox, instanceName: AppStrings.settingsBox);
+  getIt.registerSingleton<Box>(
+    settingsBox,
+    instanceName: AppStrings.settingsBox,
+  );
   getIt.registerSingleton<Box>(historyBox, instanceName: AppStrings.historyBox);
 
   // Network
@@ -31,10 +35,16 @@ Future<void> configureDependencies() async {
   getIt.registerLazySingleton<VideoRemoteDataSource>(
     () => VideoApiDatasource(getIt<Dio>()),
   );
+  getIt.registerLazySingleton<YoutubeRemoteDataSource>(
+    () => YoutubeRemoteDataSourceImpl(),
+  );
 
   // Repositories
   getIt.registerLazySingleton<VideoRepository>(
-    () => VideoRepositoryImpl(remoteDataSource: getIt<VideoRemoteDataSource>()),
+    () => VideoRepositoryImpl(
+      remoteDataSource: getIt<VideoRemoteDataSource>(),
+      youtubeDataSource: getIt<YoutubeRemoteDataSource>(),
+    ),
   );
 
   // Use Cases
