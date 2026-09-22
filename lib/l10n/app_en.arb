@@ -1,0 +1,45 @@
+{
+  "@@locale": "en",
+  "appTitle": "Downees",
+  "pasteLink": "Paste video link here...",
+  "paste": "Paste",
+  "download": "Download",
+  "history": "History",
+  "settings": "Settings",
+  "home": "Home",
+  "darkMode": "Dark Mode",
+  "language": "Language",
+  "downloadPath": "Download Path",
+  "quality": "Quality",
+  "audioOnly": "Audio Only",
+  "downloading": "Downloading...",
+  "completed": "Completed",
+  "failed": "Failed",
+  "cancel": "Cancel",
+  "delete": "Delete",
+  "share": "Share",
+  "redownload": "Re-download",
+  "linkDetected": "{platform} link detected",
+  "@linkDetected": {
+    "placeholders": {
+      "platform": {
+        "type": "String"
+      }
+    }
+  },
+  "downloadNow": "Download Now",
+  "ignore": "Ignore",
+  "noHistory": "No download history",
+  "clearHistory": "Clear History",
+  "fileSize": "{size} MB",
+  "@fileSize": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "video": "Video",
+  "preview": "Preview"
+}
+
