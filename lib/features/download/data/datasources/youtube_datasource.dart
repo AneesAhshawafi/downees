@@ -2,6 +2,7 @@ import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 
 import '../../../../core/enums/platform_type.dart';
 import '../../../../core/errors/exceptions.dart';
+import '../../../../core/utils/url_parser.dart';
 import '../models/video_info_model.dart';
 
 abstract class YoutubeRemoteDataSource {
@@ -13,7 +14,9 @@ class YoutubeRemoteDataSourceImpl implements YoutubeRemoteDataSource {
   Future<VideoInfoModel> fetchVideoInfo(String url) async {
     final yt = YoutubeExplode();
     try {
-      final video = await yt.videos.get(url);
+      final parsed = UrlParser.parse(url);
+      final videoIdOrUrl = parsed.videoId ?? url;
+      final video = await yt.videos.get(videoIdOrUrl);
       final manifest = await yt.videos.streamsClient.getManifest(video.id);
 
       final qualities = <VideoQualityModel>[];
@@ -65,7 +68,9 @@ class YoutubeRemoteDataSourceImpl implements YoutubeRemoteDataSource {
       final audioQualities = <VideoQualityModel>[];
       final seenAudioBitrates = <int>{};
       final sortedAudioStreams = manifest.audioOnly.toList()
-        ..sort((a, b) => b.bitrate.bitsPerSecond.compareTo(a.bitrate.bitsPerSecond));
+        ..sort(
+          (a, b) => b.bitrate.bitsPerSecond.compareTo(a.bitrate.bitsPerSecond),
+        );
 
       for (final stream in sortedAudioStreams) {
         final kbps = (stream.bitrate.bitsPerSecond / 1000).round();
@@ -77,7 +82,9 @@ class YoutubeRemoteDataSourceImpl implements YoutubeRemoteDataSource {
               resolution: null,
               fileSizeBytes: stream.size.totalBytes,
               downloadUrl: stream.url.toString(),
-              format: stream.container.name == 'mp4' ? 'm4a' : stream.container.name,
+              format: stream.container.name == 'mp4'
+                  ? 'm4a'
+                  : stream.container.name,
               hasAudio: true,
               isAudioOnly: true,
             ),

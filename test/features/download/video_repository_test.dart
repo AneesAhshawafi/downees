@@ -9,7 +9,8 @@ import 'package:mocktail/mocktail.dart';
 
 class MockVideoRemoteDataSource extends Mock implements VideoRemoteDataSource {}
 
-class MockYoutubeRemoteDataSource extends Mock implements YoutubeRemoteDataSource {}
+class MockYoutubeRemoteDataSource extends Mock
+    implements YoutubeRemoteDataSource {}
 
 void main() {
   late MockVideoRemoteDataSource mockRemoteDataSource;
@@ -66,16 +67,19 @@ void main() {
       verifyNever(() => mockYoutubeDataSource.fetchVideoInfo(any()));
     });
 
-    test('falls back to demo video when remoteDataSource throws NetworkException', () async {
-      const url = 'https://www.instagram.com/reel/ABC123xyz/';
-      when(() => mockRemoteDataSource.fetchVideoInfo(url))
-          .thenThrow(const NetworkException('Network error'));
+    test(
+      'falls back to demo video when remoteDataSource throws NetworkException',
+      () async {
+        const url = 'https://www.instagram.com/reel/ABC123xyz/';
+        when(() => mockRemoteDataSource.fetchVideoInfo(url))
+            .thenThrow(const NetworkException('Network error'));
 
-      final result = await repository.fetchVideoInfo(url);
+        final result = await repository.fetchVideoInfo(url);
 
-      expect(result, isNotNull);
-      expect(result.platform, PlatformType.instagram);
-      expect(result.qualities, isNotEmpty);
-    });
+        expect(result, isNotNull);
+        expect(result.platform, PlatformType.instagram);
+        expect(result.qualities, isNotEmpty);
+      },
+    );
   });
 }
