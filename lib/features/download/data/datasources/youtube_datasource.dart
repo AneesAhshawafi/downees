@@ -19,50 +19,70 @@ class YoutubeRemoteDataSourceImpl implements YoutubeRemoteDataSource {
       final video = await yt.videos.get(videoIdOrUrl);
       final manifest = await yt.videos.streamsClient.getManifest(video.id);
 
-      final qualities = <VideoQualityModel>[];
-      final seenQualityLabels = <String>{};
+      final qualitiesMap = <String, VideoQualityModel>{};
 
-      // 1. Muxed streams (contain both audio and video)
+      // 1. First add muxed streams (contain both audio and video)
       for (final stream in manifest.muxed) {
         final label = stream.qualityLabel;
-        if (!seenQualityLabels.contains(label)) {
-          seenQualityLabels.add(label);
-          qualities.add(
-            VideoQualityModel(
-              label: label,
-              resolution:
-                  '${stream.videoResolution.width}x${stream.videoResolution.height}',
-              fileSizeBytes: stream.size.totalBytes,
-              downloadUrl: stream.url.toString(),
-              format: stream.container.name,
-              hasAudio: true,
-              isAudioOnly: false,
-            ),
+        qualitiesMap[label] = VideoQualityModel(
+          label: label,
+          resolution:
+              '${stream.videoResolution.width}x${stream.videoResolution.height}',
+          fileSizeBytes: stream.size.totalBytes,
+          downloadUrl: stream.url.toString(),
+          format: stream.container.name,
+          hasAudio: true,
+          isAudioOnly: false,
+        );
+      }
+
+      // 2. Add videoOnly streams for all other resolutions (1080p, 720p, etc.)
+      final sortedVideoOnly = manifest.videoOnly.toList()
+        ..sort((a, b) {
+          // Prefer mp4 over webm
+          if (a.container.name == 'mp4' && b.container.name != 'mp4') return -1;
+          if (a.container.name != 'mp4' && b.container.name == 'mp4') return 1;
+          return b.size.totalBytes.compareTo(a.size.totalBytes);
+        });
+
+      for (final stream in sortedVideoOnly) {
+        final label = stream.qualityLabel;
+        // Don't overwrite if we already have a muxed stream for this label
+        if (!qualitiesMap.containsKey(label)) {
+          qualitiesMap[label] = VideoQualityModel(
+            label: label,
+            resolution:
+                '${stream.videoResolution.width}x${stream.videoResolution.height}',
+            fileSizeBytes: stream.size.totalBytes,
+            downloadUrl: stream.url.toString(),
+            format: stream.container.name,
+            hasAudio: false,
+            isAudioOnly: false,
           );
         }
       }
 
-      // 2. If no muxed streams available, use videoOnly streams
-      if (qualities.isEmpty) {
-        for (final stream in manifest.videoOnly) {
-          final label = stream.qualityLabel;
-          if (!seenQualityLabels.contains(label)) {
-            seenQualityLabels.add(label);
-            qualities.add(
-              VideoQualityModel(
-                label: label,
-                resolution:
-                    '${stream.videoResolution.width}x${stream.videoResolution.height}',
-                fileSizeBytes: stream.size.totalBytes,
-                downloadUrl: stream.url.toString(),
-                format: stream.container.name,
-                hasAudio: false,
-                isAudioOnly: false,
-              ),
-            );
-          }
-        }
-      }
+      // Sort video qualities in descending resolution order
+      const standardOrder = [
+        '2160p',
+        '1440p',
+        '1080p',
+        '720p',
+        '480p',
+        '360p',
+        '240p',
+        '144p',
+      ];
+
+      final qualities = qualitiesMap.values.toList()
+        ..sort((a, b) {
+          int indexA = standardOrder.indexWhere((o) => a.label.contains(o));
+          int indexB = standardOrder.indexWhere((o) => b.label.contains(o));
+          if (indexA != -1 && indexB != -1) return indexA.compareTo(indexB);
+          if (indexA != -1) return -1;
+          if (indexB != -1) return 1;
+          return b.fileSizeBytes.compareTo(a.fileSizeBytes);
+        });
 
       // 3. Audio streams (sorted by bitrate)
       final audioQualities = <VideoQualityModel>[];

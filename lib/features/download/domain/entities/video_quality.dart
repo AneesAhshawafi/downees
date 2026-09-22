@@ -21,7 +21,17 @@ class VideoQuality extends Equatable {
 
   String get fileSizeMB => (fileSizeBytes / 1024 / 1024).toStringAsFixed(1);
 
-  bool get isRecommended => label == '720p';
+  bool get isRecommended {
+    if (isAudioOnly) {
+      return label.contains('128') ||
+          label.contains('130') ||
+          label.contains('131') ||
+          label.contains('160') ||
+          label.contains('256') ||
+          label.contains('320');
+    }
+    return label == '720p';
+  }
 
   @override
   List<Object?> get props => [

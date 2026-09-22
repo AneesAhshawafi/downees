@@ -52,10 +52,13 @@ class PreviewBloc extends Bloc<PreviewEvent, PreviewState> {
 
     VideoQuality? newSelected;
     if (targetQualities.isNotEmpty) {
-      newSelected = targetQualities.firstWhere(
-        (q) => q.isRecommended,
-        orElse: () => targetQualities.first,
-      );
+      for (final q in targetQualities) {
+        if (q.isRecommended) {
+          newSelected = q;
+          break;
+        }
+      }
+      newSelected ??= targetQualities.first;
     }
 
     emit(state.copyWith(
