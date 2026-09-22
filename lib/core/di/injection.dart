@@ -1,6 +1,12 @@
 import 'package:dio/dio.dart';
 import 'package:get_it/get_it.dart';
 import 'package:hive/hive.dart';
+
+import '../../features/download/data/datasources/video_api_datasource.dart';
+import '../../features/download/data/repositories/video_repository_impl.dart';
+import '../../features/download/domain/repositories/video_repository.dart';
+import '../../features/download/domain/usecases/fetch_video_info.dart';
+import '../../features/download/presentation/bloc/preview_bloc.dart';
 import '../../features/home/presentation/bloc/home_bloc.dart';
 import '../../shared/localization/locale_cubit.dart';
 import '../../shared/theme/theme_cubit.dart';
@@ -15,6 +21,10 @@ Future<void> configureDependencies() async {
   final settingsBox = await Hive.openBox(AppStrings.settingsBox);
   final historyBox = await Hive.openBox(AppStrings.historyBox);
   getIt.registerSingleton<Box>(settingsBox, instanceName: AppStrings.settingsBox);
+  getIt.registerSingleton<Box>(
+    settingsBox,
+    instanceName: AppStrings.settingsBox,
+  );
   getIt.registerSingleton<Box>(historyBox, instanceName: AppStrings.historyBox);
 
   // Network
@@ -22,7 +32,21 @@ Future<void> configureDependencies() async {
 
   // Cubits
   // Services & Utilities
+  // Services & Data Sources
   getIt.registerLazySingleton<ClipboardWatcher>(() => ClipboardWatcher());
+  getIt.registerLazySingleton<VideoRemoteDataSource>(
+    () => VideoApiDatasource(getIt<Dio>()),
+  );
+
+  // Repositories
+  getIt.registerLazySingleton<VideoRepository>(
+    () => VideoRepositoryImpl(remoteDataSource: getIt<VideoRemoteDataSource>()),
+  );
+
+  // Use Cases
+  getIt.registerLazySingleton<FetchVideoInfo>(
+    () => FetchVideoInfo(getIt<VideoRepository>()),
+  );
 
   // Cubits & Blocs
   getIt.registerFactory<ThemeCubit>(
@@ -33,6 +57,9 @@ Future<void> configureDependencies() async {
   );
   getIt.registerFactory<HomeBloc>(
     () => HomeBloc(clipboardWatcher: getIt<ClipboardWatcher>()),
+  );
+  getIt.registerFactory<PreviewBloc>(
+    () => PreviewBloc(fetchVideoInfo: getIt<FetchVideoInfo>()),
   );
 }
 
