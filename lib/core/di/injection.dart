@@ -21,17 +21,11 @@ Future<void> configureDependencies() async {
   final settingsBox = await Hive.openBox(AppStrings.settingsBox);
   final historyBox = await Hive.openBox(AppStrings.historyBox);
   getIt.registerSingleton<Box>(settingsBox, instanceName: AppStrings.settingsBox);
-  getIt.registerSingleton<Box>(
-    settingsBox,
-    instanceName: AppStrings.settingsBox,
-  );
   getIt.registerSingleton<Box>(historyBox, instanceName: AppStrings.historyBox);
 
   // Network
   getIt.registerLazySingleton<Dio>(() => createDio());
 
-  // Cubits
-  // Services & Utilities
   // Services & Data Sources
   getIt.registerLazySingleton<ClipboardWatcher>(() => ClipboardWatcher());
   getIt.registerLazySingleton<VideoRemoteDataSource>(
@@ -62,4 +56,3 @@ Future<void> configureDependencies() async {
     () => PreviewBloc(fetchVideoInfo: getIt<FetchVideoInfo>()),
   );
 }
-

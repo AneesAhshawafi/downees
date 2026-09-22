@@ -27,9 +27,7 @@ class DownloadPreviewPage extends StatelessWidget {
     return BlocProvider(
       create: (_) => getIt<PreviewBloc>()..add(FetchVideoInfoEvent(url)),
       child: Scaffold(
-        appBar: AppBar(
-          title: Text(l10n?.preview ?? 'Preview'),
-        ),
+        appBar: AppBar(title: Text(l10n?.preview ?? 'Preview')),
         body: _DownloadPreviewView(url: url),
       ),
     );
@@ -90,26 +88,25 @@ class _DownloadPreviewView extends StatelessWidget {
                       FormatToggle(
                         isAudioOnly: state.isAudioOnly,
                         onFormatChanged: (isAudio) {
-                          context
-                              .read<PreviewBloc>()
-                              .add(SelectFormatEvent(isAudio));
+                          context.read<PreviewBloc>().add(
+                            SelectFormatEvent(isAudio),
+                          );
                         },
                       ),
                       const SizedBox(height: AppDimensions.lg),
                       Text(
                         l10n?.quality ?? 'Quality',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                        style: Theme.of(context).textTheme.titleSmall
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: AppDimensions.sm),
                       QualitySelector(
                         qualities: state.currentQualities,
                         selected: state.selectedQuality,
                         onQualitySelected: (quality) {
-                          context
-                              .read<PreviewBloc>()
-                              .add(SelectQualityEvent(quality));
+                          context.read<PreviewBloc>().add(
+                            SelectQualityEvent(quality),
+                          );
                         },
                       ),
                       const SizedBox(height: AppDimensions.md),
