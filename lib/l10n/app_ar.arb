@@ -1,0 +1,45 @@
+{
+  "@@locale": "ar",
+  "appTitle": "داونيز",
+  "pasteLink": "الصق رابط الفيديو هنا...",
+  "paste": "لصق",
+  "download": "تحميل",
+  "history": "السجل",
+  "settings": "الإعدادات",
+  "home": "الرئيسية",
+  "darkMode": "الوضع الداكن",
+  "language": "اللغة",
+  "downloadPath": "مسار التحميل",
+  "quality": "الجودة",
+  "audioOnly": "صوت فقط",
+  "downloading": "جاري التحميل...",
+  "completed": "مكتمل",
+  "failed": "فشل",
+  "cancel": "إلغاء",
+  "delete": "حذف",
+  "share": "مشاركة",
+  "redownload": "إعادة تحميل",
+  "linkDetected": "تم اكتشاف رابط {platform}",
+  "@linkDetected": {
+    "placeholders": {
+      "platform": {
+        "type": "String"
+      }
+    }
+  },
+  "downloadNow": "تحميل الآن",
+  "ignore": "تجاهل",
+  "noHistory": "لا توجد تحميلات سابقة",
+  "clearHistory": "مسح السجل",
+  "fileSize": "{size} ميجابايت",
+  "@fileSize": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "video": "فيديو",
+  "preview": "معاينة"
+}
+
