@@ -19,6 +19,7 @@ class DownloadTask extends Equatable {
   final DateTime? completedAt;
   final String? errorMessage;
   final int retryCount;
+  final String? audioUrl;
 
   const DownloadTask({
     required this.id,
@@ -37,6 +38,7 @@ class DownloadTask extends Equatable {
     this.completedAt,
     this.errorMessage,
     this.retryCount = 0,
+    this.audioUrl,
   });
 
   double get progress => totalBytes > 0 ? (receivedBytes / totalBytes).clamp(0.0, 1.0) : 0.0;
@@ -45,6 +47,7 @@ class DownloadTask extends Equatable {
   String get totalMB => (totalBytes / 1024 / 1024).toStringAsFixed(1);
   String get fileSize => '$totalMB MB';
   String get progressText => '$receivedMB / $totalMB MB';
+  Duration get elapsed => (completedAt ?? DateTime.now()).difference(createdAt);
 
   DownloadTask copyWith({
     String? id,
@@ -63,6 +66,7 @@ class DownloadTask extends Equatable {
     DateTime? completedAt,
     String? errorMessage,
     int? retryCount,
+    String? audioUrl,
   }) {
     return DownloadTask(
       id: id ?? this.id,
@@ -81,6 +85,7 @@ class DownloadTask extends Equatable {
       completedAt: completedAt ?? this.completedAt,
       errorMessage: errorMessage ?? this.errorMessage,
       retryCount: retryCount ?? this.retryCount,
+      audioUrl: audioUrl ?? this.audioUrl,
     );
   }
 
@@ -102,6 +107,6 @@ class DownloadTask extends Equatable {
         completedAt,
         errorMessage,
         retryCount,
+        audioUrl,
       ];
 }
-

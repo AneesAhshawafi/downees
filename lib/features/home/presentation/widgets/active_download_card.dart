@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/constants/app_dimensions.dart';
 import '../../../../core/enums/download_status.dart';
 import '../../../download/domain/entities/download_task.dart';
@@ -34,7 +35,7 @@ class ActiveDownloadCard extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
               child: Container(
-                width: 68,
+                width: 60,
                 height: 48,
                 color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 child: task.thumbnailUrl.isNotEmpty
@@ -47,7 +48,7 @@ class ActiveDownloadCard extends StatelessWidget {
                     : const Icon(Icons.video_library_outlined),
               ),
             ),
-            const SizedBox(width: AppDimensions.md),
+            const SizedBox(width: AppDimensions.sm),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -57,48 +58,80 @@ class ActiveDownloadCard extends StatelessWidget {
                     task.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
                   ),
                   const SizedBox(height: AppDimensions.xs),
-                  Row(
-                    children: [
-                      Text(
-                        '${task.platform.displayName} • ${task.quality} • ${task.progressText}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Theme.of(context).colorScheme.outline,
-                        ),
-                      ),
-                    ],
+                  Text(
+                    '${task.platform.displayName} • ${task.quality} • ${task.progressText}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
                   ),
                   const SizedBox(height: AppDimensions.xs),
                   Row(
                     children: [
                       Expanded(
                         child: ClipRRect(
-                          borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
+                          borderRadius: BorderRadius.circular(
+                            AppDimensions.radiusFull,
+                          ),
                           child: LinearProgressIndicator(
                             value: task.progress > 0 ? task.progress : null,
-                            minHeight: 5,
+                            minHeight: 4,
                           ),
                         ),
                       ),
-                      const SizedBox(width: AppDimensions.sm),
+                      const SizedBox(width: AppDimensions.xs),
                       Text(
                         task.progressPercent,
-                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ],
                   ),
                 ],
               ),
             ),
-            IconButton(
-              icon: Icon(
-                isDownloading ? Icons.pause_circle_outline : Icons.play_circle_outline,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              onPressed: onTogglePause,
+            const SizedBox(width: AppDimensions.xs),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.all(AppDimensions.xs),
+                  constraints: const BoxConstraints(),
+                  icon: Icon(
+                    isDownloading
+                        ? Icons.pause_circle_outline
+                        : Icons.play_circle_outline,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 24,
+                  ),
+                  onPressed: onTogglePause,
+                ),
+                if (onCancel != null) ...[
+                  const SizedBox(width: AppDimensions.xs),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.all(AppDimensions.xs),
+                    constraints: const BoxConstraints(),
+                    icon: Icon(
+                      Icons.close_rounded,
+                      size: 20,
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
+                    onPressed: onCancel,
+                  ),
+                ],
+              ],
             ),
           ],
         ),
@@ -106,4 +139,3 @@ class ActiveDownloadCard extends StatelessWidget {
     );
   }
 }
-

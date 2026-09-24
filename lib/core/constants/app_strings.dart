@@ -5,6 +5,7 @@ class AppStrings {
   static const String appVersion = '0.1.0';
   static const String settingsBox = 'settings';
   static const String historyBox = 'history';
+  static const String downloadsBox = 'downloads';
 
   // Settings keys
   static const String keyThemeMode = 'themeMode';

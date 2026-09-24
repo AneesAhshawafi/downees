@@ -11,6 +11,7 @@ class VideoQualityModel extends VideoQuality {
     required super.format,
     super.hasAudio = true,
     super.isAudioOnly = false,
+    super.audioDownloadUrl,
   });
 
   factory VideoQualityModel.fromJson(Map<String, dynamic> json) {
@@ -29,6 +30,7 @@ class VideoQualityModel extends VideoQuality {
       format: json['format'] as String? ?? (isAudio ? 'mp3' : 'mp4'),
       hasAudio: json['has_audio'] as bool? ?? (acodec != null && acodec != 'none'),
       isAudioOnly: isAudio || (json['is_audio_only'] as bool? ?? false),
+      audioDownloadUrl: json['audio_download_url'] as String?,
     );
   }
 
@@ -41,6 +43,7 @@ class VideoQualityModel extends VideoQuality {
       'format': format,
       'has_audio': hasAudio,
       'is_audio_only': isAudioOnly,
+      'audio_download_url': audioDownloadUrl,
     };
   }
 }

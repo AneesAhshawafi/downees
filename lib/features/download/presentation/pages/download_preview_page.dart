@@ -6,6 +6,8 @@ import '../../../../core/di/injection.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../../shared/widgets/app_error_widget.dart';
 import '../../../../shared/widgets/app_snackbar.dart';
+import '../bloc/download_bloc.dart';
+import '../bloc/download_event.dart';
 import '../bloc/preview_bloc.dart';
 import '../bloc/preview_event.dart';
 import '../bloc/preview_state.dart';
@@ -130,6 +132,17 @@ class _DownloadPreviewView extends StatelessWidget {
                   selectedQuality: state.selectedQuality,
                   onStartDownload: () {
                     context.read<PreviewBloc>().add(const StartDownloadEvent());
+                    if (state.videoInfo != null && state.selectedQuality != null) {
+                      context.read<DownloadBloc>().add(
+                        StartNewDownload(
+                          videoInfo: state.videoInfo!,
+                          quality: state.selectedQuality!,
+                          isAudioOnly: state.isAudioOnly,
+                        ),
+                      );
+                      context.read<PreviewBloc>().add(const StartDownloadEvent());
+                      Navigator.of(context).pop();
+                    }
                   },
                 ),
               ),
