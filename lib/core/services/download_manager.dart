@@ -243,6 +243,65 @@ class DownloadManager {
     _checkNextInQueue();
   }
 
+  /// مطابقة ذكية لمسار الفيديو حسب الجودة المطلوبة وحاوية MP4 وترميز AVC
+  StreamInfo? _findMatchingVideoStream(StreamManifest manifest, String targetQuality) {
+    final targetNum = RegExp(r'(\\d+)').firstMatch(targetQuality)?.group(1);
+
+    final candidates = manifest.videoOnly.where((s) {
+      if (targetNum != null) {
+        final sNum = RegExp(r'(\\d+)').firstMatch(s.qualityLabel)?.group(1);
+        if (sNum != null) {
+          return sNum == targetNum;
+        }
+      }
+      return s.qualityLabel.toLowerCase().startsWith(targetQuality.toLowerCase());
+    }).toList();
+
+    if (candidates.isEmpty) {
+      final muxedCandidates = manifest.muxed.where((s) {
+        if (targetNum != null) {
+          final sNum = RegExp(r'(\\d+)').firstMatch(s.qualityLabel)?.group(1);
+          if (sNum != null) return sNum == targetNum;
+        }
+        return s.qualityLabel.toLowerCase().startsWith(targetQuality.toLowerCase());
+      }).toList();
+      if (muxedCandidates.isNotEmpty) {
+        return muxedCandidates.first;
+      }
+    }
+
+    candidates.sort((a, b) {
+      final aIsMp4 = a.container.name == 'mp4';
+      final bIsMp4 = b.container.name == 'mp4';
+      if (aIsMp4 && !bIsMp4) return -1;
+      if (!aIsMp4 && bIsMp4) return 1;
+
+      final aIsAvc = a.videoCodec.toLowerCase().contains('avc');
+      final bIsAvc = b.videoCodec.toLowerCase().contains('avc');
+      if (aIsAvc && !bIsAvc) return -1;
+      if (!aIsAvc && bIsAvc) return 1;
+
+      return a.size.totalBytes.compareTo(b.size.totalBytes);
+    });
+
+    return candidates.isNotEmpty ? candidates.first : manifest.videoOnly.firstOrNull;
+  }
+
+  /// اختيار أفضل مسار صوت MP4/AAC مناسب للدمج
+  StreamInfo? _findMatchingAudioStream(StreamManifest manifest) {
+    final sortedAudio = manifest.audioOnly.toList()
+      ..sort((a, b) {
+        final aIsMp4 = a.container.name == 'mp4';
+        final bIsMp4 = b.container.name == 'mp4';
+        if (aIsMp4 && !bIsMp4) return -1;
+        if (!aIsMp4 && bIsMp4) return 1;
+
+        return b.bitrate.bitsPerSecond.compareTo(a.bitrate.bitsPerSecond);
+      });
+
+    return sortedAudio.firstOrNull;
+  }
+
   /// تحميل مباشر عبر YoutubeExplode لتجنب حظر الخادم 403
   Future<void> _executeYoutubeDirectDownload(
     DownloadTask task,
@@ -258,16 +317,9 @@ class DownloadManager {
 
       StreamInfo? stream;
       if (task.format == 'm4a' || task.format == 'mp3') {
-        final sortedAudio = manifest.audioOnly.toList()
-          ..sort((a, b) =>
-              b.bitrate.bitsPerSecond.compareTo(a.bitrate.bitsPerSecond));
-        stream = sortedAudio.where((a) => a.container.name == 'mp4').firstOrNull ??
-            (sortedAudio.isNotEmpty ? sortedAudio.first : null);
+        stream = _findMatchingAudioStream(manifest);
       } else {
-        stream = manifest.muxed
-                .where((s) => s.qualityLabel.contains(task.quality))
-                .firstOrNull ??
-            (manifest.muxed.isNotEmpty ? manifest.muxed.first : null);
+        stream = _findMatchingVideoStream(manifest, task.quality);
       }
 
       if (stream == null) {
@@ -353,35 +405,35 @@ class DownloadManager {
       final videoId = VideoId(videoIdOrUrl);
       final manifest = await yt.videos.streamsClient.getManifest(videoId);
 
-      final matchingVideos = manifest.videoOnly
-          .where((s) => s.qualityLabel.contains(task.quality))
-          .toList()
-        ..sort((a, b) {
-          if (a.container.name == 'mp4' && b.container.name != 'mp4') return -1;
-          if (a.container.name != 'mp4' && b.container.name == 'mp4') return 1;
-          return b.size.totalBytes.compareTo(a.size.totalBytes);
-        });
+      final videoStream = _findMatchingVideoStream(manifest, task.quality);
+      if (videoStream == null) {
+        throw Exception('لم يتم العثور على بث فيديو مناسب للجودة ${task.quality}');
+      }
 
-      final videoStream = matchingVideos.isNotEmpty
-          ? matchingVideos.first
-          : manifest.videoOnly.first;
-
-      final sortedAudio = manifest.audioOnly.toList()
-        ..sort((a, b) {
-          if (a.container.name == 'mp4' && b.container.name != 'mp4') return -1;
-          if (a.container.name != 'mp4' && b.container.name == 'mp4') return 1;
-          return b.bitrate.bitsPerSecond.compareTo(a.bitrate.bitsPerSecond);
-        });
-      final audioStream = sortedAudio.first;
+      final audioStream = _findMatchingAudioStream(manifest);
+      if (audioStream == null) {
+        throw Exception('لم يتم العثور على مسار صوت مناسب للفيديو');
+      }
 
       final totalExpected =
           videoStream.size.totalBytes + audioStream.size.totalBytes;
       int videoReceived = 0;
       int audioReceived = 0;
+      int lastEmitTime = 0;
+      int lastEmitBytes = 0;
 
-      void updateProgress() {
+      void updateProgress({bool force = false}) {
         final totalReceived = videoReceived + audioReceived;
+        final now = DateTime.now().millisecondsSinceEpoch;
+
+        if (!force && (now - lastEmitTime < 250) && (totalReceived - lastEmitBytes < 256 * 1024)) {
+          return;
+        }
+
+        lastEmitTime = now;
+        lastEmitBytes = totalReceived;
         _lastReceivedBytes[task.id] = totalReceived;
+
         _emitUpdate(
           task.copyWith(
             receivedBytes: totalReceived,
@@ -408,6 +460,7 @@ class DownloadManager {
       } finally {
         await vSink.flush();
         await vSink.close();
+        updateProgress(force: true);
       }
 
       if (cancelToken.isCancelled) {
@@ -440,6 +493,7 @@ class DownloadManager {
       } finally {
         await aSink.flush();
         await aSink.close();
+        updateProgress(force: true);
       }
 
       if (cancelToken.isCancelled) {

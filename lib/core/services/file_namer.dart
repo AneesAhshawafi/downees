@@ -14,7 +14,7 @@ class FileNamer {
   }) {
     // تنظيف العنوان من الأحرف غير المسموحة واستبدالها بمسافة
     final cleanTitle = title
-        .replaceAll(RegExp(r'[\\/:*?"<>|]'), ' ')
+        .replaceAll(RegExp(r'[\\/:*?"<>|؟؛،]'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
 
