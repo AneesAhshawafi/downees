@@ -20,6 +20,7 @@ class DownloadTaskModel extends DownloadTask {
     super.completedAt,
     super.errorMessage,
     super.retryCount = 0,
+    super.audioUrl,
   });
 
   factory DownloadTaskModel.fromEntity(DownloadTask task) {
@@ -40,6 +41,7 @@ class DownloadTaskModel extends DownloadTask {
       completedAt: task.completedAt,
       errorMessage: task.errorMessage,
       retryCount: task.retryCount,
+      audioUrl: task.audioUrl,
     );
   }
 
@@ -103,6 +105,7 @@ class DownloadTaskModel extends DownloadTask {
       completedAt: parseNullableDate(map['completedAt']),
       errorMessage: map['errorMessage'] as String?,
       retryCount: parseInt(map['retryCount']),
+      audioUrl: map['audioUrl'] as String?,
     );
   }
 
@@ -124,6 +127,7 @@ class DownloadTaskModel extends DownloadTask {
       'completedAt': completedAt?.toIso8601String(),
       'errorMessage': errorMessage,
       'retryCount': retryCount,
+      'audioUrl': audioUrl,
     };
   }
 
@@ -145,6 +149,7 @@ class DownloadTaskModel extends DownloadTask {
       completedAt: completedAt,
       errorMessage: errorMessage,
       retryCount: retryCount,
+      audioUrl: audioUrl,
     );
   }
 }

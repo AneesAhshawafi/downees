@@ -86,6 +86,7 @@ class DownloadBloc extends Bloc<DownloadEvent, DownloadState> {
       status: DownloadStatus.pending,
       savePath: savePath,
       createdAt: DateTime.now(),
+      audioUrl: event.quality.audioDownloadUrl,
     );
 
     final updatedTasks = Map<String, DownloadTask>.from(state.tasks)

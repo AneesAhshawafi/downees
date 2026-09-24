@@ -24,6 +24,7 @@ import '../constants/app_strings.dart';
 import '../network/api_client.dart';
 import '../services/download_manager.dart';
 import '../services/download_queue.dart';
+import '../services/media_muxer_service.dart';
 import '../utils/clipboard_watcher.dart';
 
 final getIt = GetIt.instance;
@@ -50,10 +51,12 @@ Future<void> configureDependencies() async {
   // Services & Data Sources
   getIt.registerLazySingleton<ClipboardWatcher>(() => ClipboardWatcher());
   getIt.registerLazySingleton<DownloadQueue>(() => DownloadQueue(3));
+  getIt.registerLazySingleton<MediaMuxerService>(() => MediaMuxerService());
   getIt.registerLazySingleton<DownloadManager>(
     () => DownloadManager(
       dio: createDownloadDio(),
       queue: getIt<DownloadQueue>(),
+      mediaMuxerService: getIt<MediaMuxerService>(),
     ),
   );
   getIt.registerLazySingleton<DownloadLocalDataSource>(
