@@ -26,16 +26,31 @@ Dio createDio({String? baseUrl}) {
 }
 
 Dio createDownloadDio() {
-  return Dio(
+  final dio = Dio(
     BaseOptions(
       connectTimeout: const Duration(seconds: 30),
       receiveTimeout: Duration.zero,
       sendTimeout: const Duration(seconds: 30),
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
-        'Accept': '*/*',
-      },
       followRedirects: true,
     ),
   );
+
+  dio.interceptors.add(
+    InterceptorsWrapper(
+      onRequest: (options, handler) {
+        final host = options.uri.host.toLowerCase();
+        if (host.contains('googlevideo.com') || host.contains('youtube.com')) {
+          options.headers['User-Agent'] =
+              'com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip';
+        } else {
+          options.headers['User-Agent'] =
+              'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
+        }
+        options.headers['Accept'] = '*/*';
+        return handler.next(options);
+      },
+    ),
+  );
+
+  return dio;
 }

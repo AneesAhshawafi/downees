@@ -59,6 +59,12 @@ class ActiveDownloadsList extends StatelessWidget {
                   onCancel: () {
                     context.read<DownloadBloc>().add(CancelDownload(task.id));
                   },
+                  onRetry: () {
+                    context.read<DownloadBloc>().add(RetryDownload(task.id));
+                  },
+                  onDelete: () {
+                    context.read<DownloadBloc>().add(DeleteDownload(task.id));
+                  },
                 );
               },
             ),

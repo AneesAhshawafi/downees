@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/enums/download_status.dart';
@@ -62,38 +63,43 @@ class DownloadBloc extends Bloc<DownloadEvent, DownloadState> {
     StartNewDownload event,
     Emitter<DownloadState> emit,
   ) async {
-    final fileName = FileNamer.generateFileName(
-      title: event.videoInfo.title,
-      quality: event.quality.label,
-      format: event.quality.format,
-      platform: event.videoInfo.platform,
-    );
+    try {
+      final fileName = FileNamer.generateFileName(
+        title: event.videoInfo.title,
+        quality: event.quality.label,
+        format: event.quality.format,
+        platform: event.videoInfo.platform,
+      );
 
-    final savePath = await FileNamer.getFullSavePath(fileName: fileName);
-    final id = DateTime.now().microsecondsSinceEpoch.toString();
+      final savePath = await FileNamer.getFullSavePath(fileName: fileName);
+      final id = DateTime.now().microsecondsSinceEpoch.toString();
 
-    final task = DownloadTask(
-      id: id,
-      url: event.quality.downloadUrl,
-      originalUrl: event.videoInfo.id,
-      title: event.videoInfo.title,
-      thumbnailUrl: event.videoInfo.thumbnailUrl,
-      platform: event.videoInfo.platform,
-      quality: event.quality.label,
-      format: event.quality.format,
-      totalBytes: event.quality.fileSizeBytes,
-      receivedBytes: 0,
-      status: DownloadStatus.pending,
-      savePath: savePath,
-      createdAt: DateTime.now(),
-      audioUrl: event.quality.audioDownloadUrl,
-    );
+      final task = DownloadTask(
+        id: id,
+        url: event.quality.downloadUrl,
+        originalUrl: event.videoInfo.id,
+        title: event.videoInfo.title,
+        thumbnailUrl: event.videoInfo.thumbnailUrl,
+        platform: event.videoInfo.platform,
+        quality: event.quality.label,
+        format: event.quality.format,
+        totalBytes: event.quality.fileSizeBytes,
+        receivedBytes: 0,
+        status: DownloadStatus.pending,
+        savePath: savePath,
+        createdAt: DateTime.now(),
+        audioUrl: event.quality.audioDownloadUrl,
+      );
 
-    final updatedTasks = Map<String, DownloadTask>.from(state.tasks)
-      ..[task.id] = task;
-    emit(state.copyWith(tasks: updatedTasks));
+      final updatedTasks = Map<String, DownloadTask>.from(state.tasks)
+        ..[task.id] = task;
+      emit(state.copyWith(tasks: updatedTasks));
 
-    await startDownloadUseCase(task);
+      // لا ننتظر انتهاء التحميل لتحرير معالج الأحداث في الـ Bloc
+      unawaited(startDownloadUseCase(task));
+    } catch (e) {
+      debugPrint('❌ [Downees] Failed to start download: $e');
+    }
   }
 
   Future<void> _onPauseDownload(

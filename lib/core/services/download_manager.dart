@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' show min;
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../features/download/domain/entities/download_task.dart';
@@ -38,8 +40,20 @@ class DownloadManager {
 
   /// بدء تحميل جديد مع مراعاة إدارة الطابور
   Future<void> startDownload(DownloadTask task) async {
+    debugPrint(
+      '📥 [Downees] startDownload: id=${task.id}, quality=${task.quality}',
+    );
+    debugPrint(
+      '📥 [Downees] URL: ${task.url.substring(0, min(80, task.url.length))}...',
+    );
+    debugPrint(
+      '📥 [Downees] audioUrl: ${task.audioUrl != null ? "present" : "null"}',
+    );
+    debugPrint('📥 [Downees] savePath: ${task.savePath}');
+
     // إذا كانت المهمة قيد التحميل بالفعل لا نبدأها مرة أخرى
     if (_cancelTokens.containsKey(task.id)) {
+      debugPrint('⏭️ [Downees] Already downloading, skipping');
       return;
     }
 
@@ -47,6 +61,9 @@ class DownloadManager {
     if (!_queue.canStartNext && !_queue.isActive(task.id)) {
       _queue.enqueue(task);
       _emitUpdate(task.copyWith(status: DownloadStatus.pending));
+      debugPrint(
+        '⏳ [Downees] Queued (active: ${_queue.activeCount}, pending: ${_queue.pendingCount})',
+      );
       return;
     }
 
@@ -55,13 +72,9 @@ class DownloadManager {
   }
 
   Future<void> _executeDownload(DownloadTask task) async {
-    final cancelToken = CancelToken();
-    _cancelTokens[task.id] = cancelToken;
-    _isPaused[task.id] = false;
-
-    _emitUpdate(task.copyWith(status: DownloadStatus.downloading));
-
     String effectiveSavePath = task.savePath;
+
+    // تحضير مسار الحفظ (مرة واحدة)
     try {
       if (effectiveSavePath.isNotEmpty) {
         final parentDir = File(effectiveSavePath).parent;
@@ -69,7 +82,8 @@ class DownloadManager {
           parentDir.createSync(recursive: true);
         }
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('⚠️ [Downees] Cannot create save dir: $e, using fallback');
       try {
         final docs = await getApplicationDocumentsDirectory();
         final fileName = effectiveSavePath.split(RegExp(r'[/\\]')).last;
@@ -81,49 +95,88 @@ class DownloadManager {
       } catch (_) {}
     }
 
-    try {
-      if (task.audioUrl != null && task.audioUrl!.isNotEmpty) {
-        await _executeMuxedDownload(task, cancelToken, effectiveSavePath);
-      } else {
-        await _executeDirectDownload(task, cancelToken, effectiveSavePath);
-      }
-    } on DioException catch (e) {
-      if (CancelToken.isCancel(e) || e.type == DioExceptionType.cancel) {
-        if (_isPaused[task.id] == true) {
-          final pausedBytes =
-              _pausedBytes[task.id] ?? _lastReceivedBytes[task.id] ?? 0;
-          _emitUpdate(
-            task.copyWith(
-              status: DownloadStatus.paused,
-              receivedBytes: pausedBytes,
-              savePath: effectiveSavePath,
-            ),
+    // حلقة إعادة المحاولات (بدلاً من الاستدعاء العودي)
+    for (int attempt = task.retryCount; attempt <= maxRetries; attempt++) {
+      final cancelToken = CancelToken();
+      _cancelTokens[task.id] = cancelToken;
+      _isPaused[task.id] = false;
+
+      _emitUpdate(
+        task.copyWith(
+          status: DownloadStatus.downloading,
+          savePath: effectiveSavePath,
+        ),
+      );
+
+      try {
+        if (task.audioUrl != null && task.audioUrl!.isNotEmpty) {
+          debugPrint(
+            '🔀 [Downees] Muxed download (attempt ${attempt + 1}/${maxRetries + 1})',
           );
+          await _executeMuxedDownload(task, cancelToken, effectiveSavePath);
         } else {
-          _pausedBytes.remove(task.id);
+          debugPrint(
+            '⬇️ [Downees] Direct download (attempt ${attempt + 1}/${maxRetries + 1})',
+          );
+          await _executeDirectDownload(task, cancelToken, effectiveSavePath);
+        }
+        // نجح التحميل — نخرج من الحلقة
+        debugPrint('✅ [Downees] Download completed: ${task.id}');
+        break;
+      } on DioException catch (e) {
+        if (CancelToken.isCancel(e) || e.type == DioExceptionType.cancel) {
+          if (_isPaused[task.id] == true) {
+            final pausedBytes =
+                _pausedBytes[task.id] ?? _lastReceivedBytes[task.id] ?? 0;
+            debugPrint('⏸️ [Downees] Download paused at $pausedBytes bytes');
+            _emitUpdate(
+              task.copyWith(
+                status: DownloadStatus.paused,
+                receivedBytes: pausedBytes,
+                savePath: effectiveSavePath,
+              ),
+            );
+          } else {
+            _pausedBytes.remove(task.id);
+            debugPrint('🚫 [Downees] Download cancelled');
+            _emitUpdate(
+              task.copyWith(
+                status: DownloadStatus.cancelled,
+                savePath: effectiveSavePath,
+              ),
+            );
+          }
+          // تنظيف وخروج — لا retry عند الإيقاف/الإلغاء
+          _cancelTokens.remove(task.id);
+          _queue.markCompleted(task.id);
+          _checkNextInQueue();
+          return;
+        }
+
+        _cancelTokens.remove(task.id);
+        debugPrint(
+          '❌ [Downees] DioException (attempt ${attempt + 1}/${maxRetries + 1}): ${e.type}',
+        );
+        debugPrint(
+          '❌ [Downees] Status: ${e.response?.statusCode}, Message: ${e.message}',
+        );
+
+        if (attempt < maxRetries) {
+          final delay = Duration(seconds: (attempt + 1) * 2);
+          debugPrint('🔄 [Downees] Retrying in ${delay.inSeconds}s...');
           _emitUpdate(
             task.copyWith(
-              status: DownloadStatus.cancelled,
+              status: DownloadStatus.downloading,
+              errorMessage:
+                  'إعادة المحاولة ${attempt + 2}/${maxRetries + 1}...',
               savePath: effectiveSavePath,
             ),
           );
+          await Future.delayed(delay);
+          continue;
         }
-        return;
-      }
 
-      // إزالة رمز الإلغاء قبل إعادة المحاولة حتى لا تُرفض المحاولة
-      _cancelTokens.remove(task.id);
-
-      // خطأ شبكة أو خادم — إعادة المحاولة تلقائياً
-      if (task.retryCount < maxRetries) {
-        await Future.delayed(Duration(seconds: (task.retryCount + 1) * 2));
-        await startDownload(
-          task.copyWith(
-            retryCount: task.retryCount + 1,
-            savePath: effectiveSavePath,
-          ),
-        );
-      } else {
+        debugPrint('💀 [Downees] All retries exhausted, marking as failed');
         _emitUpdate(
           task.copyWith(
             status: DownloadStatus.failed,
@@ -131,19 +184,20 @@ class DownloadManager {
             savePath: effectiveSavePath,
           ),
         );
-      }
-    } catch (e) {
-      _cancelTokens.remove(task.id);
-
-      if (task.retryCount < maxRetries) {
-        await Future.delayed(Duration(seconds: (task.retryCount + 1) * 2));
-        await startDownload(
-          task.copyWith(
-            retryCount: task.retryCount + 1,
-            savePath: effectiveSavePath,
-          ),
+      } catch (e) {
+        _cancelTokens.remove(task.id);
+        debugPrint(
+          '❌ [Downees] Error (attempt ${attempt + 1}/${maxRetries + 1}): $e',
         );
-      } else {
+
+        if (attempt < maxRetries) {
+          final delay = Duration(seconds: (attempt + 1) * 2);
+          debugPrint('🔄 [Downees] Retrying in ${delay.inSeconds}s...');
+          await Future.delayed(delay);
+          continue;
+        }
+
+        debugPrint('💀 [Downees] All retries exhausted, marking as failed');
         _emitUpdate(
           task.copyWith(
             status: DownloadStatus.failed,
@@ -152,11 +206,12 @@ class DownloadManager {
           ),
         );
       }
-    } finally {
-      _cancelTokens.remove(task.id);
-      _queue.markCompleted(task.id);
-      _checkNextInQueue();
     }
+
+    // تنظيف — يُنفذ مرة واحدة فقط
+    _cancelTokens.remove(task.id);
+    _queue.markCompleted(task.id);
+    _checkNextInQueue();
   }
 
   /// تحميل مباشر للبث المدمج (صوت وصورة مسبقاً) أو ملفات الصوت المستقلة

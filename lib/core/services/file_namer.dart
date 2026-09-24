@@ -18,12 +18,18 @@ class FileNamer {
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
 
+    // تنظيف الجودة أيضاً من الأحرف غير المسموحة
+    final cleanQuality = quality
+        .replaceAll(RegExp(r'[\\/:*?"<>|(){}\[\]]'), '')
+        .replaceAll(RegExp(r'\s+'), '_')
+        .trim();
+
     // اقتصار الطول على 80 حرف
     final shortTitle = cleanTitle.length > 80
         ? cleanTitle.substring(0, 80).trim()
         : cleanTitle;
 
-    return '${shortTitle}_${quality}_${platform.name}.$format';
+    return '${shortTitle}_${cleanQuality}_${platform.name}.$format';
   }
 
   static bool _canWriteToDir(String path) {

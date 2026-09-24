@@ -9,6 +9,7 @@ import '../bloc/home_bloc.dart';
 import '../bloc/home_event.dart';
 import '../bloc/home_state.dart';
 import '../widgets/active_downloads_list.dart';
+import '../widgets/completed_downloads_list.dart';
 import '../widgets/download_button.dart';
 import '../widgets/paste_button.dart';
 import '../widgets/smart_paste_banner.dart';
@@ -97,6 +98,8 @@ class _HomeViewState extends State<_HomeView> with WidgetsBindingObserver {
                       ),
                       const SizedBox(height: AppDimensions.lg),
                       const ActiveDownloadsList(),
+                      const SizedBox(height: AppDimensions.md),
+                      const CompletedDownloadsList(),
                     ],
                   ),
                 ),
