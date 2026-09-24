@@ -23,6 +23,7 @@ class ActiveDownloadCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDownloading = task.status == DownloadStatus.downloading;
+    final isProcessing = task.status == DownloadStatus.processing;
     final isFailed = task.status == DownloadStatus.failed;
 
     return Card(
@@ -96,12 +97,17 @@ class ActiveDownloadCard extends StatelessWidget {
                     ),
                   ] else ...[
                     Text(
-                      '${task.platform.displayName} • ${task.quality} • ${task.progressText}',
+                      isProcessing
+                          ? '${task.platform.displayName} • ${task.quality} • جاري المعالجة والدمج...'
+                          : '${task.platform.displayName} • ${task.quality} • ${task.progressText}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 11,
-                        color: Theme.of(context).colorScheme.outline,
+                        color: isProcessing
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).colorScheme.outline,
+                        fontWeight: isProcessing ? FontWeight.w600 : null,
                       ),
                     ),
                     const SizedBox(height: AppDimensions.xs),
@@ -113,14 +119,16 @@ class ActiveDownloadCard extends StatelessWidget {
                               AppDimensions.radiusFull,
                             ),
                             child: LinearProgressIndicator(
-                              value: task.progress > 0 ? task.progress : null,
+                              value: isProcessing
+                                  ? null
+                                  : (task.progress > 0 ? task.progress : null),
                               minHeight: 4,
                             ),
                           ),
                         ),
                         const SizedBox(width: AppDimensions.xs),
                         Text(
-                          task.progressPercent,
+                          isProcessing ? 'معالجة...' : task.progressPercent,
                           style: const TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w600,
@@ -133,7 +141,16 @@ class ActiveDownloadCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: AppDimensions.xs),
-            if (isFailed) ...[
+            if (isProcessing) ...[
+              const SizedBox(
+                width: 24,
+                height: 24,
+                child: Padding(
+                  padding: EdgeInsets.all(2.0),
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            ] else if (isFailed) ...[
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [

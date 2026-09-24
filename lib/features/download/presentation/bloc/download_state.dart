@@ -12,6 +12,7 @@ class DownloadState extends Equatable {
       .where(
         (t) =>
             t.status == DownloadStatus.downloading ||
+            t.status == DownloadStatus.processing ||
             t.status == DownloadStatus.paused ||
             t.status == DownloadStatus.pending ||
             t.status == DownloadStatus.failed,

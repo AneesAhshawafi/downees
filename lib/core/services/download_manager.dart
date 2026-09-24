@@ -458,6 +458,12 @@ class DownloadManager {
 
       // 3. دمج الفيديو والصوت عتادياً عبر MediaMuxer
       debugPrint('🔀 [Downees] Muxing video and audio with MediaMuxer...');
+      _emitUpdate(
+        task.copyWith(
+          status: DownloadStatus.processing,
+          savePath: effectiveSavePath,
+        ),
+      );
       await _mediaMuxerService.muxVideoAndAudio(
         videoPath: videoTmpPath,
         audioPath: audioTmpPath,
@@ -636,6 +642,13 @@ class DownloadManager {
       ),
     ]);
 
+    // إشعار واجهة المستخدم بحالة المعالجة والدمج
+    _emitUpdate(
+      task.copyWith(
+        status: DownloadStatus.processing,
+        savePath: effectiveSavePath,
+      ),
+    );
     // دمج مسار الصوت ومسار الفيديو عتادياً بدون إعادة ترميز
     await _mediaMuxerService.muxVideoAndAudio(
       videoPath: videoTmpPath,

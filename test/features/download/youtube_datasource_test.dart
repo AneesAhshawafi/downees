@@ -13,7 +13,9 @@ void main() {
     test('fetches YouTube video info successfully', () async {
       try {
         const url = 'https://www.youtube.com/watch?v=aqz-KE-bpKQ';
-        final result = await dataSource.fetchVideoInfo(url);
+        final result = await dataSource
+            .fetchVideoInfo(url)
+            .timeout(const Duration(seconds: 15));
 
         expect(result.id, 'aqz-KE-bpKQ');
         expect(result.platform, PlatformType.youtube);
