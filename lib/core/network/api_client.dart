@@ -43,8 +43,7 @@ Dio createDownloadDio() {
           options.headers['User-Agent'] =
               'com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip';
         } else {
-          options.headers['User-Agent'] =
-              'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
+          options.headers['User-Agent'] = 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
         }
         options.headers['Accept'] = '*/*';
         return handler.next(options);

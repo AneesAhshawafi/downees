@@ -5,9 +5,11 @@ import 'dart:math' show min;
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 
 import '../../features/download/domain/entities/download_task.dart';
 import '../enums/download_status.dart';
+import '../enums/platform_type.dart';
 import 'download_queue.dart';
 import 'media_muxer_service.dart';
 
@@ -109,16 +111,43 @@ class DownloadManager {
       );
 
       try {
-        if (task.audioUrl != null && task.audioUrl!.isNotEmpty) {
-          debugPrint(
-            '🔀 [Downees] Muxed download (attempt ${attempt + 1}/${maxRetries + 1})',
-          );
-          await _executeMuxedDownload(task, cancelToken, effectiveSavePath);
+        final isYouTube = task.platform == PlatformType.youtube &&
+            (task.url.contains('googlevideo.com') ||
+                task.url.contains('youtube.com')) &&
+            !task.url.contains('example.com');
+
+        if (isYouTube) {
+          if (task.audioUrl != null && task.audioUrl!.isNotEmpty) {
+            debugPrint(
+              '🔀 [Downees] YouTube Muxed download (attempt ${attempt + 1}/${maxRetries + 1})',
+            );
+            await _executeYoutubeMuxedDownload(
+              task,
+              cancelToken,
+              effectiveSavePath,
+            );
+          } else {
+            debugPrint(
+              '⬇️ [Downees] YouTube Direct download (attempt ${attempt + 1}/${maxRetries + 1})',
+            );
+            await _executeYoutubeDirectDownload(
+              task,
+              cancelToken,
+              effectiveSavePath,
+            );
+          }
         } else {
-          debugPrint(
-            '⬇️ [Downees] Direct download (attempt ${attempt + 1}/${maxRetries + 1})',
-          );
-          await _executeDirectDownload(task, cancelToken, effectiveSavePath);
+          if (task.audioUrl != null && task.audioUrl!.isNotEmpty) {
+            debugPrint(
+              '🔀 [Downees] Muxed download (attempt ${attempt + 1}/${maxRetries + 1})',
+            );
+            await _executeMuxedDownload(task, cancelToken, effectiveSavePath);
+          } else {
+            debugPrint(
+              '⬇️ [Downees] Direct download (attempt ${attempt + 1}/${maxRetries + 1})',
+            );
+            await _executeDirectDownload(task, cancelToken, effectiveSavePath);
+          }
         }
         // نجح التحميل — نخرج من الحلقة
         debugPrint('✅ [Downees] Download completed: ${task.id}');
@@ -212,6 +241,260 @@ class DownloadManager {
     _cancelTokens.remove(task.id);
     _queue.markCompleted(task.id);
     _checkNextInQueue();
+  }
+
+  /// تحميل مباشر عبر YoutubeExplode لتجنب حظر الخادم 403
+  Future<void> _executeYoutubeDirectDownload(
+    DownloadTask task,
+    CancelToken cancelToken,
+    String effectiveSavePath,
+  ) async {
+    final yt = YoutubeExplode();
+    try {
+      final videoIdOrUrl =
+          task.originalUrl.isNotEmpty ? task.originalUrl : task.url;
+      final videoId = VideoId(videoIdOrUrl);
+      final manifest = await yt.videos.streamsClient.getManifest(videoId);
+
+      StreamInfo? stream;
+      if (task.format == 'm4a' || task.format == 'mp3') {
+        final sortedAudio = manifest.audioOnly.toList()
+          ..sort((a, b) =>
+              b.bitrate.bitsPerSecond.compareTo(a.bitrate.bitsPerSecond));
+        stream = sortedAudio.where((a) => a.container.name == 'mp4').firstOrNull ??
+            (sortedAudio.isNotEmpty ? sortedAudio.first : null);
+      } else {
+        stream = manifest.muxed
+                .where((s) => s.qualityLabel.contains(task.quality))
+                .firstOrNull ??
+            (manifest.muxed.isNotEmpty ? manifest.muxed.first : null);
+      }
+
+      if (stream == null) {
+        throw Exception('لم يتم العثور على بث مناسب للفيديو');
+      }
+
+      final file = File(effectiveSavePath);
+      final sink = file.openWrite();
+      int receivedBytes = 0;
+      final totalBytes = stream.size.totalBytes > 0
+          ? stream.size.totalBytes
+          : task.totalBytes;
+
+      try {
+        await for (final chunk in yt.videos.streamsClient.get(stream)) {
+          if (cancelToken.isCancelled) {
+            break;
+          }
+          sink.add(chunk);
+          receivedBytes += chunk.length;
+          _lastReceivedBytes[task.id] = receivedBytes;
+          _emitUpdate(
+            task.copyWith(
+              receivedBytes: receivedBytes,
+              totalBytes: totalBytes,
+              status: DownloadStatus.downloading,
+              savePath: effectiveSavePath,
+            ),
+          );
+        }
+      } finally {
+        await sink.flush();
+        await sink.close();
+      }
+
+      if (cancelToken.isCancelled) {
+        if (_isPaused[task.id] == true) {
+          _emitUpdate(
+            task.copyWith(
+              status: DownloadStatus.paused,
+              receivedBytes: receivedBytes,
+            ),
+          );
+        } else {
+          _emitUpdate(task.copyWith(status: DownloadStatus.cancelled));
+        }
+        return;
+      }
+
+      await _mediaMuxerService.scanFile(effectiveSavePath);
+
+      _pausedBytes.remove(task.id);
+      _isPaused.remove(task.id);
+      _lastReceivedBytes.remove(task.id);
+
+      _emitUpdate(
+        task.copyWith(
+          status: DownloadStatus.completed,
+          completedAt: DateTime.now(),
+          receivedBytes: receivedBytes,
+          totalBytes: receivedBytes,
+          savePath: effectiveSavePath,
+        ),
+      );
+    } finally {
+      yt.close();
+    }
+  }
+
+  /// تحميل الجودات العالية (1080p, 720p) ودمج الصوت عبر YoutubeExplode + MediaMuxer
+  Future<void> _executeYoutubeMuxedDownload(
+    DownloadTask task,
+    CancelToken cancelToken,
+    String effectiveSavePath,
+  ) async {
+    final yt = YoutubeExplode();
+    final videoTmpPath = '$effectiveSavePath.video.tmp';
+    final audioTmpPath = '$effectiveSavePath.audio.tmp';
+
+    try {
+      final videoIdOrUrl =
+          task.originalUrl.isNotEmpty ? task.originalUrl : task.url;
+      final videoId = VideoId(videoIdOrUrl);
+      final manifest = await yt.videos.streamsClient.getManifest(videoId);
+
+      final matchingVideos = manifest.videoOnly
+          .where((s) => s.qualityLabel.contains(task.quality))
+          .toList()
+        ..sort((a, b) {
+          if (a.container.name == 'mp4' && b.container.name != 'mp4') return -1;
+          if (a.container.name != 'mp4' && b.container.name == 'mp4') return 1;
+          return b.size.totalBytes.compareTo(a.size.totalBytes);
+        });
+
+      final videoStream = matchingVideos.isNotEmpty
+          ? matchingVideos.first
+          : manifest.videoOnly.first;
+
+      final sortedAudio = manifest.audioOnly.toList()
+        ..sort((a, b) {
+          if (a.container.name == 'mp4' && b.container.name != 'mp4') return -1;
+          if (a.container.name != 'mp4' && b.container.name == 'mp4') return 1;
+          return b.bitrate.bitsPerSecond.compareTo(a.bitrate.bitsPerSecond);
+        });
+      final audioStream = sortedAudio.first;
+
+      final totalExpected =
+          videoStream.size.totalBytes + audioStream.size.totalBytes;
+      int videoReceived = 0;
+      int audioReceived = 0;
+
+      void updateProgress() {
+        final totalReceived = videoReceived + audioReceived;
+        _lastReceivedBytes[task.id] = totalReceived;
+        _emitUpdate(
+          task.copyWith(
+            receivedBytes: totalReceived,
+            totalBytes: totalExpected,
+            status: DownloadStatus.downloading,
+            savePath: effectiveSavePath,
+          ),
+        );
+      }
+
+      // 1. تنزيل مسار الفيديو
+      debugPrint(
+        '📥 [Downees] Streaming YouTube video (${videoStream.qualityLabel}, ${videoStream.container.name})...',
+      );
+      final vFile = File(videoTmpPath);
+      final vSink = vFile.openWrite();
+      try {
+        await for (final chunk in yt.videos.streamsClient.get(videoStream)) {
+          if (cancelToken.isCancelled) break;
+          vSink.add(chunk);
+          videoReceived += chunk.length;
+          updateProgress();
+        }
+      } finally {
+        await vSink.flush();
+        await vSink.close();
+      }
+
+      if (cancelToken.isCancelled) {
+        if (_isPaused[task.id] == true) {
+          _emitUpdate(
+            task.copyWith(
+              status: DownloadStatus.paused,
+              receivedBytes: videoReceived,
+            ),
+          );
+        } else {
+          _emitUpdate(task.copyWith(status: DownloadStatus.cancelled));
+        }
+        return;
+      }
+
+      // 2. تنزيل مسار الصوت
+      debugPrint(
+        '📥 [Downees] Streaming YouTube audio (${audioStream.bitrate}, ${audioStream.container.name})...',
+      );
+      final aFile = File(audioTmpPath);
+      final aSink = aFile.openWrite();
+      try {
+        await for (final chunk in yt.videos.streamsClient.get(audioStream)) {
+          if (cancelToken.isCancelled) break;
+          aSink.add(chunk);
+          audioReceived += chunk.length;
+          updateProgress();
+        }
+      } finally {
+        await aSink.flush();
+        await aSink.close();
+      }
+
+      if (cancelToken.isCancelled) {
+        if (_isPaused[task.id] == true) {
+          _emitUpdate(
+            task.copyWith(
+              status: DownloadStatus.paused,
+              receivedBytes: videoReceived + audioReceived,
+            ),
+          );
+        } else {
+          _emitUpdate(task.copyWith(status: DownloadStatus.cancelled));
+        }
+        return;
+      }
+
+      // 3. دمج الفيديو والصوت عتادياً عبر MediaMuxer
+      debugPrint('🔀 [Downees] Muxing video and audio with MediaMuxer...');
+      await _mediaMuxerService.muxVideoAndAudio(
+        videoPath: videoTmpPath,
+        audioPath: audioTmpPath,
+        outputPath: effectiveSavePath,
+      );
+
+      // تنظيف الملفات المؤقتة
+      try {
+        if (vFile.existsSync()) vFile.deleteSync();
+        if (aFile.existsSync()) aFile.deleteSync();
+      } catch (_) {}
+
+      // 4. فهرسة الملف في وسائط النظام
+      await _mediaMuxerService.scanFile(effectiveSavePath);
+
+      _pausedBytes.remove(task.id);
+      _isPaused.remove(task.id);
+      _lastReceivedBytes.remove(task.id);
+
+      final finalFile = File(effectiveSavePath);
+      final finalSize = finalFile.existsSync()
+          ? finalFile.lengthSync()
+          : totalExpected;
+
+      debugPrint('🎉 [Downees] YouTube Muxed Download Completed Successfully!');
+      _emitUpdate(
+        task.copyWith(
+          status: DownloadStatus.completed,
+          completedAt: DateTime.now(),
+          receivedBytes: finalSize,
+          totalBytes: finalSize,
+          savePath: effectiveSavePath,
+        ),
+      );
+    } finally {
+      yt.close();
+    }
   }
 
   /// تحميل مباشر للبث المدمج (صوت وصورة مسبقاً) أو ملفات الصوت المستقلة
