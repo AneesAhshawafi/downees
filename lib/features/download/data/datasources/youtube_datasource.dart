@@ -19,9 +19,20 @@ class YoutubeRemoteDataSourceImpl implements YoutubeRemoteDataSource {
       final video = await yt.videos.get(videoIdOrUrl);
       final manifest = await yt.videos.streamsClient.getManifest(video.id);
 
+      // Find best audio stream for muxing (prefer MP4 container AAC audio for native MediaMuxer)
+      final sortedAudioForMux = manifest.audioOnly.toList()
+        ..sort((a, b) {
+          if (a.container.name == 'mp4' && b.container.name != 'mp4') return -1;
+          if (a.container.name != 'mp4' && b.container.name == 'mp4') return 1;
+          return b.bitrate.bitsPerSecond.compareTo(a.bitrate.bitsPerSecond);
+        });
+      final defaultAudioStream = sortedAudioForMux.isNotEmpty
+          ? sortedAudioForMux.first
+          : null;
+
       final qualitiesMap = <String, VideoQualityModel>{};
 
-      // 1. First add muxed streams (contain both audio and video)
+      // 1. إضافة البث المدمج (صوت وصورة معاً في ملف واحد)
       for (final stream in manifest.muxed) {
         final label = stream.qualityLabel;
         qualitiesMap[label] = VideoQualityModel(
@@ -33,31 +44,37 @@ class YoutubeRemoteDataSourceImpl implements YoutubeRemoteDataSource {
           format: stream.container.name,
           hasAudio: true,
           isAudioOnly: false,
+          audioDownloadUrl: null, // مدمج بالفعل
         );
       }
 
-      // 2. Add videoOnly streams for all other resolutions (1080p, 720p, etc.)
+      // 2. إضافة الجودات العالية (1080p, 720p, 480p, إلخ) مع ربطها بمسار الصوت للدمج
       final sortedVideoOnly = manifest.videoOnly.toList()
         ..sort((a, b) {
-          // Prefer mp4 over webm
-          if (a.container.name == 'mp4' && b.container.name != 'mp4') return -1;
-          if (a.container.name != 'mp4' && b.container.name == 'mp4') return 1;
+          if (a.container.name == 'mp4' && b.container.name != 'mp4') {
+            return -1;
+          }
+          if (a.container.name != 'mp4' && b.container.name == 'mp4') {
+            return 1;
+          }
           return b.size.totalBytes.compareTo(a.size.totalBytes);
         });
 
       for (final stream in sortedVideoOnly) {
         final label = stream.qualityLabel;
-        // Don't overwrite if we already have a muxed stream for this label
+        // إذا كانت الجودة موجودة بالفعل كبث مدمج لا نستبدلها
         if (!qualitiesMap.containsKey(label)) {
+          final audioBytes = defaultAudioStream?.size.totalBytes ?? 0;
           qualitiesMap[label] = VideoQualityModel(
             label: label,
             resolution:
                 '${stream.videoResolution.width}x${stream.videoResolution.height}',
-            fileSizeBytes: stream.size.totalBytes,
+            fileSizeBytes: stream.size.totalBytes + audioBytes,
             downloadUrl: stream.url.toString(),
-            format: stream.container.name,
-            hasAudio: false,
+            format: 'mp4',
+            hasAudio: true,
             isAudioOnly: false,
+            audioDownloadUrl: defaultAudioStream?.url.toString(),
           );
         }
       }
@@ -84,8 +101,23 @@ class YoutubeRemoteDataSourceImpl implements YoutubeRemoteDataSource {
           return b.fileSizeBytes.compareTo(a.fileSizeBytes);
         });
 
-      // 3. Audio streams (sorted by bitrate)
+      // 3. مسارات الصوت (Audio streams)
       final audioQualities = <VideoQualityModel>[];
+      if (manifest.muxed.isNotEmpty) {
+        final bestMuxed = manifest.muxed.first;
+        audioQualities.add(
+          VideoQualityModel(
+            label: '128 kbps (Audio)',
+            resolution: null,
+            fileSizeBytes: (bestMuxed.size.totalBytes * 0.25).round(),
+            downloadUrl: bestMuxed.url.toString(),
+            format: 'm4a',
+            hasAudio: true,
+            isAudioOnly: true,
+          ),
+        );
+      }
+
       final seenAudioBitrates = <int>{};
       final sortedAudioStreams = manifest.audioOnly.toList()
         ..sort(

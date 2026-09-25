@@ -8,6 +8,7 @@ class VideoQuality extends Equatable {
   final String format;
   final bool hasAudio;
   final bool isAudioOnly;
+  final String? audioDownloadUrl;
 
   const VideoQuality({
     required this.label,
@@ -17,6 +18,7 @@ class VideoQuality extends Equatable {
     required this.format,
     this.hasAudio = true,
     this.isAudioOnly = false,
+    this.audioDownloadUrl,
   });
 
   String get fileSizeMB => (fileSizeBytes / 1024 / 1024).toStringAsFixed(1);
@@ -42,5 +44,6 @@ class VideoQuality extends Equatable {
     format,
     hasAudio,
     isAudioOnly,
+    audioDownloadUrl,
   ];
 }

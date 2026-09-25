@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'app_router.dart';
 import 'core/di/injection.dart';
+import 'features/download/presentation/bloc/download_bloc.dart';
+import 'features/download/presentation/bloc/download_event.dart';
 import 'l10n/app_localizations.dart';
 import 'shared/localization/locale_cubit.dart';
 import 'shared/theme/app_theme.dart';
@@ -17,6 +19,9 @@ class DowneesApp extends StatelessWidget {
       providers: [
         BlocProvider(create: (_) => getIt<ThemeCubit>()),
         BlocProvider(create: (_) => getIt<LocaleCubit>()),
+        BlocProvider(
+          create: (_) => getIt<DownloadBloc>()..add(const LoadDownloads()),
+        ),
       ],
       child: BlocBuilder<ThemeCubit, ThemeMode>(
         builder: (context, themeMode) {
